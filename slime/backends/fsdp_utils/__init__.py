@@ -15,7 +15,12 @@ except ImportError as e:
 
 if _FSDP_AVAILABLE:
     from .actor import FSDPTrainRayActor
-    from .arguments import load_fsdp_args
+    from .arguments import load_fsdp_args, FSDPArgs
+    from .cpu_adam import (
+        create_cpu_adam_optimizer,
+        offload_optimizer_to_cpu,
+        load_optimizer_to_gpu
+    )
 else:
 
     def _raise_import_error(*args, **kwargs):
@@ -27,7 +32,18 @@ else:
 
     FSDPTrainRayActor = _raise_import_error
     load_fsdp_args = _raise_import_error
+    FSDPArgs = _raise_import_error
+    create_cpu_adam_optimizer = _raise_import_error
+    offload_optimizer_to_cpu = _raise_import_error
+    load_optimizer_to_gpu = _raise_import_error
 
-__all__ = ["load_fsdp_args", "FSDPTrainRayActor"]
+__all__ = [
+    "load_fsdp_args", 
+    "FSDPArgs",
+    "FSDPTrainRayActor",
+    "create_cpu_adam_optimizer", 
+    "offload_optimizer_to_cpu",
+    "load_optimizer_to_gpu"
+]
 
 logging.getLogger().setLevel(logging.WARNING)

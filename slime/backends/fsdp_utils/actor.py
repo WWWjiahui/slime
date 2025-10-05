@@ -31,6 +31,7 @@ from slime.utils.wandb_utils import init_wandb_secondary
 
 from .data_packing import pack_sequences, unpack_sequences
 from .update_weight_utils import UpdateWeightFromDistributed, UpdateWeightFromTensor
+from .cpu_adam import create_cpu_adam_optimizer, offload_optimizer_to_cpu, load_optimizer_to_gpu
 
 
 class FSDPTrainRayActor(TrainRayActor):
@@ -81,16 +82,28 @@ class FSDPTrainRayActor(TrainRayActor):
         if args.gradient_checkpointing:
             model.gradient_checkpointing_enable()
 
-        # Create FSDP v2 model using FSDP
+        # Create FSDP v2 model
         self.model = FSDP(model)
 
-        self.optimizer = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=args.lr,
-            betas=(args.adam_beta1, args.adam_beta2),
-            eps=args.adam_eps,
-            weight_decay=args.weight_decay,
-        )
+        # Create optimizer - CPU Adam for large models
+        if getattr(args, 'use_cpu_adam', False):
+            self.optimizer = create_cpu_adam_optimizer(
+                self.model,
+                lr=args.lr,
+                betas=(args.adam_beta1, args.adam_beta2),
+                eps=args.adam_eps,
+                weight_decay=args.weight_decay,
+            )
+            print(f"Created CPU Adam optimizer for memory efficiency")
+        else:
+            # Standard AdamW optimizer
+            self.optimizer = torch.optim.AdamW(
+                self.model.parameters(),
+                lr=args.lr,
+                betas=(args.adam_beta1, args.adam_beta2),
+                eps=args.adam_eps,
+                weight_decay=args.weight_decay,
+            )
 
         # TODO: load
 
@@ -122,12 +135,25 @@ class FSDPTrainRayActor(TrainRayActor):
     def sleep(self, tags):
         if not getattr(self.args, "offload", False):
             return
+        
+        # Handle CPU Adam offload
+        if getattr(self.args, 'use_cpu_adam', False):
+            from .cpu_adam import offload_optimizer_to_cpu
+            offload_optimizer_to_cpu(self.optimizer)
+        
+        # Handle torch memory saver
         if torch_memory_saver is not None:
             torch_memory_saver.pause()
 
     def wake_up(self, tags):
         if not getattr(self.args, "offload", False):
             return
+        
+        # Handle CPU Adam load
+        if getattr(self.args, 'use_cpu_adam', False):
+            load_optimizer_to_gpu(self.optimizer)
+        
+        # Handle torch memory saver
         if torch_memory_saver is not None:
             torch_memory_saver.resume()
 
