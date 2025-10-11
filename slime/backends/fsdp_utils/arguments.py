@@ -19,7 +19,7 @@ class FSDPArgs:
     warmup_ratio: float = 0.03
     
     # CPU Adam - for large model training with limited GPU memory
-    use_cpu_adam: bool = False
+    use_cpu_adam: bool = True
 
     # Weight update configuration
     update_weights_bucket_size: int = 512 * 1024 * 1024  # Bucket size for batching weight updates in bytes (512MB)
